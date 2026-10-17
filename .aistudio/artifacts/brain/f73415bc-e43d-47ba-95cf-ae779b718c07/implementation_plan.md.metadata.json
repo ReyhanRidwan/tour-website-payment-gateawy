@@ -1,0 +1,6 @@
+{
+  "summary":  "Rencana integrasi Nodemailer Gmail SMTP: pengiriman email E-Voucher resmi otomatis ke User dan email Notifikasi Pesanan Baru ke Admin Hoola Holiday Bali saat status transaksi Midtrans Settlement (Berhasil).",
+  "updatedAt":  "2026-10-11T12:22:17.498983988Z",
+  "requestFeedback":  true,
+  "userFacing":  true
+}

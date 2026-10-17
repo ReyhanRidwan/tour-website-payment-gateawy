@@ -1,0 +1,8 @@
+{
+  "name": "Hoola Holiday Bali",
+  "description": "Layanan tour & rental mobil eksklusif Hoola Holiday Bali dengan sistem Down Payment (DP) aman dan integrasi Payment Gateway Midtrans di backend.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
