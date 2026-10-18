@@ -55,7 +55,7 @@ const OFFICIAL_VEHICLE_PRICES: Record<string, { name: string; withDriver: number
   'honda-scoopy': { name: 'Honda Scoopy Prestige', withDriver: 195000, withoutDriver: 95000 },
 };
 
-import { sendBookingConfirmationEmails } from './src/services/emailService';
+import { dispatchBookingEmails as sendBookingConfirmationEmails } from './src/services/resendService';
 
 // In-Memory Secure Transaction Storage (Bisa dikembangkan ke PostgreSQL / Cloud SQL / Firestore)
 interface TransactionRecord {
@@ -519,9 +519,9 @@ app.post('/api/payment/notification', async (req: Request, res: Response) => {
 
 // Endpoint Verifikasi Status Transaksi Langsung ke Server Midtrans (Authoritative Server-to-Server)
 // Memenuhi Persyaratan 6: Jangan pernah menganggap pembayaran berhasil hanya dari respons/redirect frontend.
-app.post('/api/payment/verify-status/:orderId', async (req: Request, res: Response) => {
+app.post(['/api/payment/verify-status', '/api/payment/verify-status/:orderId'], async (req: Request, res: Response) => {
   try {
-    const { orderId } = req.params;
+    const orderId = (req.params.orderId || req.body?.orderId || req.query?.orderId) as string;
     if (!orderId) {
       return res.status(400).json({ error: 'orderId wajib diisi.' });
     }
@@ -720,8 +720,11 @@ app.post('/api/payment/send-confirmation-email', async (req: Request, res: Respo
 });
 
 // Endpoint cek status transaksi
-app.get('/api/payment/status/:orderId', (req: Request, res: Response) => {
-  const { orderId } = req.params;
+app.get(['/api/payment/status', '/api/payment/status/:orderId'], (req: Request, res: Response) => {
+  const orderId = (req.params.orderId || req.query?.orderId) as string;
+  if (!orderId) {
+    return res.status(400).json({ error: 'orderId wajib diisi' });
+  }
   const record = transactionsDb.get(orderId);
   if (!record) {
     return res.status(404).json({ error: 'Data transaksi tidak ditemukan' });

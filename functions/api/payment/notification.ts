@@ -1,0 +1,123 @@
+// Cloudflare Pages Functions: POST /api/payment/notification (Webhook Midtrans)
+import { resolveMidtransStatus } from '../../../src/services/pricingEngine';
+import { dispatchBookingEmails } from '../../../src/services/resendService';
+
+// Web Crypto API SHA-512 (Native di Cloudflare Workers)
+async function calculateSha512(message: string): Promise<string> {
+  const msgBuffer = new TextEncoder().encode(message);
+  const hashBuffer = await crypto.subtle.digest('SHA-512', msgBuffer);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+export const onRequestPost = async (context: {
+  request: Request;
+  env: Record<string, string>;
+  waitUntil?: (promise: Promise<any>) => void;
+}) => {
+  try {
+    const env = context.env || {};
+    const body: any = await context.request.json();
+
+    const {
+      order_id,
+      status_code,
+      gross_amount,
+      signature_key,
+      transaction_status,
+      fraud_status,
+      payment_type,
+      transaction_id,
+    } = body;
+
+    if (!order_id) {
+      return new Response(JSON.stringify({ error: 'order_id wajib disertakan dalam webhook.' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    const serverKey = env.MIDTRANS_SERVER_KEY || '';
+    const isConfigured = Boolean(
+      serverKey &&
+      !serverKey.includes('YOUR_') &&
+      serverKey.length > 10
+    );
+
+    // 1. Validasi Signature SHA-512
+    if (isConfigured && signature_key) {
+      const rawString = `${order_id}${status_code}${gross_amount}${serverKey}`;
+      const expectedSignature = await calculateSha512(rawString);
+
+      if (signature_key.toLowerCase() !== expectedSignature.toLowerCase()) {
+        console.warn(`[Security Alert] Invalid signature for order: ${order_id}`);
+        return new Response(JSON.stringify({ error: 'Signature keamanan tidak valid (Forbidden).' }), {
+          status: 403,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+    }
+
+    // 2. Tentukan status pembayaran
+    const paymentTypeFromOrder: 'dp' | 'full' = order_id.startsWith('HHB-DP') ? 'dp' : 'full';
+    const { status: resolvedStatus, isSuccess } = resolveMidtransStatus(
+      transaction_status,
+      fraud_status,
+      paymentTypeFromOrder
+    );
+
+    // 3. Dispatch Email E-Voucher via Resend REST API
+    if (isSuccess) {
+      const grossNum = Number(gross_amount) || 0;
+      const isDP = paymentTypeFromOrder === 'dp';
+      const remainingBalance = isDP ? Math.round(grossNum * (70 / 30)) : 0;
+      const totalAmount = grossNum + remainingBalance;
+
+      const emailPromise = dispatchBookingEmails(
+        {
+          orderId: order_id,
+          bookingType: 'tour',
+          itemName: 'Paket Tour Hoola Holiday Bali',
+          customerName: body.customer_name || 'Tamu Terhormat',
+          customerEmail: body.customer_email || 'nusawebworks@gmail.com',
+          customerPhone: body.customer_phone || '-',
+          totalAmountIDR: totalAmount,
+          grossAmountPaidIDR: grossNum,
+          remainingBalanceIDR: remainingBalance,
+          paymentType: paymentTypeFromOrder,
+          dpPercentage: 30,
+          status: resolvedStatus,
+          paymentMethod: payment_type || 'Midtrans Online Payment',
+        },
+        env
+      );
+
+      if (context.waitUntil) {
+        context.waitUntil(emailPromise);
+      } else {
+        await emailPromise;
+      }
+    }
+
+    return new Response(
+      JSON.stringify({
+        status: 'success',
+        orderId: order_id,
+        transactionStatus: resolvedStatus,
+        message: 'Notification processed successfully on Cloudflare Edge',
+      }),
+      {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }
+    );
+  } catch (err: any) {
+    return new Response(
+      JSON.stringify({ error: err.message || 'Error processing webhook' }),
+      {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' },
+      }
+    );
+  }
+};

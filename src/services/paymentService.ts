@@ -209,11 +209,12 @@ export function openMidtransSnap(
 export async function verifyPaymentStatus(
   orderId: string
 ): Promise<{ success: boolean; verified: boolean; record: VerifiedTransactionRecord; message?: string }> {
-  const res = await fetch(`/api/payment/verify-status/${encodeURIComponent(orderId)}`, {
+  const res = await fetch(`/api/payment/verify-status?orderId=${encodeURIComponent(orderId)}`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
+    body: JSON.stringify({ orderId }),
   });
 
   const data = await res.json();
@@ -226,7 +227,7 @@ export async function verifyPaymentStatus(
 
 // 5. Cek status transaksi tersimpan di backend
 export async function getPaymentStatus(orderId: string): Promise<VerifiedTransactionRecord> {
-  const res = await fetch(`/api/payment/status/${encodeURIComponent(orderId)}`);
+  const res = await fetch(`/api/payment/status?orderId=${encodeURIComponent(orderId)}`);
   const data = await res.json();
   if (!res.ok || !data.success) {
     throw new Error(data.error || 'Gagal mengecek status transaksi.');
