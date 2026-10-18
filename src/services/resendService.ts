@@ -351,6 +351,22 @@ export async function dispatchBookingEmails(
       console.log(`[Resend API] Berhasil mengirim email ke admin: ${adminEmail}`);
     } catch (err: any) {
       console.error(`[Resend API Error Admin]: ${err.message}`);
+      // Fallback sandbox Resend (jika domain belum diverifikasi dan hanya bisa kirim ke email pemilik akun)
+      if (err.message && err.message.includes('testing emails to your own email address')) {
+        try {
+          await sendEmailViaResendApi({
+            apiKey: resendApiKey,
+            from: resendFrom,
+            to: 'reyhanridwan30@gmail.com',
+            subject: `🔔 BOOKING BARU [${data.orderId}] - ${data.customerName} (${data.itemName})`,
+            html: generateAdminEmailHtml(data),
+          });
+          adminSent = true;
+          console.log(`[Resend Sandbox] Notifikasi berhasil dialihkan ke email akun Resend: reyhanridwan30@gmail.com`);
+        } catch (fbErr: any) {
+          console.error(`[Resend Sandbox Fallback Error]: ${fbErr.message}`);
+        }
+      }
     }
 
     return {

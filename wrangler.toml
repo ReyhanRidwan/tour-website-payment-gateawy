@@ -1,0 +1,15 @@
+name = "tour-website-payment-gateawy"
+main = "src/worker.ts"
+compatibility_date = "2024-09-23"
+compatibility_flags = ["nodejs_compat"]
+
+# Cloudflare Workers Static Assets (Frontend React SPA)
+[assets]
+directory = "./dist"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+
+[vars]
+MIDTRANS_IS_PRODUCTION = "false"
+RESEND_FROM = "Hoola Holiday Bali <onboarding@resend.dev>"
+ADMIN_EMAIL = "reyhanridwan30@gmail.com"
