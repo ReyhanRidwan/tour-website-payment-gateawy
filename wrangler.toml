@@ -11,5 +11,7 @@ not_found_handling = "single-page-application"
 
 [vars]
 MIDTRANS_IS_PRODUCTION = "false"
+MIDTRANS_CLIENT_KEY = "Mid-client-fHdtxHc9aBZ7eZi1"
+MIDTRANS_MERCHANT_ID = "M967161571"
 RESEND_FROM = "Hoola Holiday Bali <onboarding@resend.dev>"
 ADMIN_EMAIL = "reyhanridwan30@gmail.com"

@@ -57,6 +57,7 @@ export default {
     }
 
     const serverKey = env.MIDTRANS_SERVER_KEY || '';
+    const resendApiKey = env.RESEND_API_KEY || '';
     const isProduction = env.MIDTRANS_IS_PRODUCTION === 'true';
     const coreApiBaseUrl = isProduction
       ? 'https://api.midtrans.com/v2'
@@ -79,7 +80,7 @@ export default {
           merchantId: env.MIDTRANS_MERCHANT_ID || 'M967161571',
         },
         resend: {
-          configured: Boolean(env.RESEND_API_KEY && env.RESEND_API_KEY.startsWith('re_')),
+          configured: Boolean(resendApiKey && resendApiKey.startsWith('re_')),
         },
         timestamp: new Date().toISOString(),
       });
@@ -285,7 +286,7 @@ export default {
               status: resolvedStatus,
               paymentMethod: payment_type || 'Midtrans Online Payment',
             },
-            env
+            { ...env, RESEND_API_KEY: resendApiKey }
           );
 
           if (ctx.waitUntil) {
@@ -394,7 +395,7 @@ export default {
                 status: authoritativeStatus,
                 paymentMethod: payment_type || 'Midtrans Online Payment',
               },
-              env
+              { ...env, RESEND_API_KEY: resendApiKey }
             );
 
             if (ctx.waitUntil) {
