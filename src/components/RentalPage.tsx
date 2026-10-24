@@ -193,7 +193,6 @@ export default function RentalPage({ initialVehicleId }: RentalPageProps) {
               createdAt: new Date().toISOString(),
             };
             setConfirmedBooking(bookingObj);
-            triggerSendConfirmationEmail(response.orderId).catch(console.error);
             setStep('success');
             window.scrollTo({ top: 0, behavior: 'smooth' });
           },

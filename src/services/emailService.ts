@@ -188,10 +188,14 @@ function generateCustomerEmailHtml(data: BookingEmailData): string {
 // 2. Template Email Notifikasi untuk Tim Operasional Hoola Holiday (Admin)
 function generateAdminEmailHtml(data: BookingEmailData): string {
   const isDP = data.paymentType === 'dp';
-  const cleanPhone = data.customerPhone.replace(/\D/g, '');
-  const waUrl = cleanPhone.startsWith('0')
-    ? `https://wa.me/62${cleanPhone.slice(1)}`
-    : `https://wa.me/${cleanPhone}`;
+  const customerPhone = data.customerPhone || '-';
+  const customerName = data.customerName || 'Tamu Terhormat';
+  const customerEmail = data.customerEmail || '-';
+  const itemName = data.itemName || 'Paket Wisata Hoola Holiday Bali';
+  const cleanPhone = customerPhone.replace(/\D/g, '');
+  const waUrl = cleanPhone
+    ? (cleanPhone.startsWith('0') ? `https://wa.me/62${cleanPhone.slice(1)}` : `https://wa.me/${cleanPhone}`)
+    : '#';
 
   return `
 <!DOCTYPE html>

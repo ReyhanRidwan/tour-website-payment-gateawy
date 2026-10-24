@@ -334,7 +334,6 @@ export default function BookingModal({
     };
 
     setConfirmedBooking(bookingObj);
-    triggerSendConfirmationEmail(session.orderId).catch(console.error);
     setIsProcessingMidtrans(false);
     setStep('success');
     onBookingSuccess(bookingObj as any);

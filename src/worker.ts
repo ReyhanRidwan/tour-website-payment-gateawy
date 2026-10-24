@@ -421,57 +421,6 @@ export default {
             updatedAt: new Date().toISOString(),
           };
 
-          if (isSuccess && !emailedOrders.has(orderId)) {
-            emailedOrders.add(orderId);
-            const customerObj = body.customer || {};
-            const savedCustomer = orderCustomerMap.get(orderId) || {};
-
-            const customField1 = statusData?.custom_field1;
-            const customField2 = statusData?.custom_field2;
-            const customField3 = statusData?.custom_field3 || '';
-            const [customPhone, customItem] = customField3.includes(' | ')
-              ? customField3.split(' | ')
-              : [customField3, ''];
-
-            const guestEmail = customerObj.customerEmail || customerObj.email || customField2 || savedCustomer.email || body.customerEmail || statusData.customer_email || '';
-            const guestName = customerObj.customerName || customerObj.name || customField1 || savedCustomer.name || body.customerName || statusData.customer_name || 'Tamu Terhormat';
-            const guestPhone = customerObj.customerPhone || customerObj.phone || (customPhone && customPhone !== '-' ? customPhone : '') || savedCustomer.phone || body.customerPhone || statusData.customer_phone || '-';
-            const itemTitle = customerObj.itemName || customItem || savedCustomer.itemName || body.itemName || 'Paket Wisata Hoola Holiday Bali';
-
-            const emailPromise = dispatchBookingEmails(
-              {
-                orderId,
-                bookingType: 'tour',
-                itemName: itemTitle,
-                customerName: guestName,
-                customerEmail: guestEmail,
-                customerPhone: guestPhone,
-                startDate: customerObj.startDate || savedCustomer.startDate || body.startDate,
-                quantity: customerObj.quantity || savedCustomer.quantity || body.quantity,
-                specialNotes: customerObj.specialNotes || savedCustomer.specialNotes || body.specialNotes,
-                totalAmountIDR: totalAmount,
-                grossAmountPaidIDR: grossNum,
-                remainingBalanceIDR: remainingBalance,
-                paymentType,
-                dpPercentage: 30,
-                status: authoritativeStatus,
-                paymentMethod: payment_type || 'Midtrans Online Payment',
-              },
-              {
-                ...env,
-                RESEND_API_KEY: resendApiKey,
-                RESEND_FROM: env.RESEND_FROM || 'Hoola Holiday Bali <booking@balinikitour.biz.id>',
-                ADMIN_EMAIL: env.ADMIN_EMAIL || 'reyhanridwan30@gmail.com',
-              }
-            );
-
-            if (ctx.waitUntil) {
-              ctx.waitUntil(emailPromise);
-            } else {
-              await emailPromise;
-            }
-          }
-
           return jsonResponse({ success: true, verified: true, record });
         }
 

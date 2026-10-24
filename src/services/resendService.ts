@@ -166,10 +166,14 @@ export function generateCustomerEmailHtml(data: BookingEmailData): string {
 // 2. Template Email Notifikasi untuk Admin Hoola Holiday
 export function generateAdminEmailHtml(data: BookingEmailData): string {
   const isDP = data.paymentType === 'dp';
-  const cleanPhone = data.customerPhone.replace(/\D/g, '');
-  const waUrl = cleanPhone.startsWith('0')
-    ? `https://wa.me/62${cleanPhone.slice(1)}`
-    : `https://wa.me/${cleanPhone}`;
+  const customerPhone = data.customerPhone || '-';
+  const customerName = data.customerName || 'Tamu Terhormat';
+  const customerEmail = data.customerEmail || '-';
+  const itemName = data.itemName || 'Paket Wisata Hoola Holiday Bali';
+  const cleanPhone = customerPhone.replace(/\D/g, '');
+  const waUrl = cleanPhone
+    ? (cleanPhone.startsWith('0') ? `https://wa.me/62${cleanPhone.slice(1)}` : `https://wa.me/${cleanPhone}`)
+    : '#';
 
   return `<!DOCTYPE html>
 <html lang="id">
@@ -204,7 +208,7 @@ export function generateAdminEmailHtml(data: BookingEmailData): string {
 
       <div style="text-align: center;">
         <a class="wa-button" href="${waUrl}" target="_blank">
-          💬 Chat WhatsApp Tamu Sekarang (${data.customerPhone})
+          💬 Chat WhatsApp Tamu Sekarang (${customerPhone})
         </a>
       </div>
 
@@ -215,19 +219,19 @@ export function generateAdminEmailHtml(data: BookingEmailData): string {
         </tr>
         <tr>
           <td class="label">Nama Tamu</td>
-          <td class="value">${data.customerName}</td>
+          <td class="value">${customerName}</td>
         </tr>
         <tr>
           <td class="label">WhatsApp Tamu</td>
-          <td class="value">${data.customerPhone}</td>
+          <td class="value">${customerPhone}</td>
         </tr>
         <tr>
           <td class="label">Email Tamu</td>
-          <td class="value">${data.customerEmail}</td>
+          <td class="value">${customerEmail}</td>
         </tr>
         <tr>
           <td class="label">Paket / Layanan</td>
-          <td class="value">${data.itemName}</td>
+          <td class="value">${itemName}</td>
         </tr>
         ${data.startDate ? `
         <tr>
