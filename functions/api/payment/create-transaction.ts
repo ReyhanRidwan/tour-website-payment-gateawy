@@ -96,6 +96,9 @@ export const onRequestPost = async (context: {
         credit_card: {
           secure: true,
         },
+        custom_field1: (customer.name || '').slice(0, 255),
+        custom_field2: (customer.email || '').slice(0, 255),
+        custom_field3: `${customer.phone || '-'} | ${pricing.itemName || 'Tour'}`.slice(0, 255),
         callbacks: {
           finish: `/?order_id=${orderId}&payment_status=finish`,
         },

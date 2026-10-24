@@ -181,6 +181,9 @@ export default {
             credit_card: {
               secure: true,
             },
+            custom_field1: (customer.name || '').slice(0, 255),
+            custom_field2: (customer.email || '').slice(0, 255),
+            custom_field3: `${customer.phone || '-'} | ${pricing.itemName || 'Tour'}`.slice(0, 255),
             callbacks: {
               finish: `/?order_id=${orderId}&payment_status=finish`,
             },
@@ -288,10 +291,19 @@ export default {
           const remainingBalance = isDP ? Math.round(grossNum * (70 / 30)) : 0;
           const totalAmount = grossNum + remainingBalance;
 
-          const guestEmail = savedCustomer.email || body.customer_email || '';
-          const guestName = savedCustomer.name || body.customer_name || 'Tamu Terhormat';
-          const guestPhone = savedCustomer.phone || body.customer_phone || '-';
-          const itemTitle = savedCustomer.itemName || 'Paket Wisata Hoola Holiday Bali';
+          const customField1 = body.custom_field1;
+          const customField2 = body.custom_field2;
+          const customField3 = body.custom_field3 || '';
+          const [customPhone, customItem] = customField3.includes(' | ')
+            ? customField3.split(' | ')
+            : [customField3, ''];
+
+          const guestName = customField1 || savedCustomer.name || body.customer_name || 'Tamu Terhormat';
+          const guestEmail = customField2 || savedCustomer.email || body.customer_email || '';
+          const guestPhone = (customPhone && customPhone !== '-')
+            ? customPhone
+            : (savedCustomer.phone || body.customer_phone || '-');
+          const itemTitle = customItem || savedCustomer.itemName || 'Paket Wisata Hoola Holiday Bali';
 
           const emailPromise = dispatchBookingEmails(
             {
@@ -414,10 +426,17 @@ export default {
             const customerObj = body.customer || {};
             const savedCustomer = orderCustomerMap.get(orderId) || {};
 
-            const guestEmail = customerObj.customerEmail || customerObj.email || savedCustomer.email || body.customerEmail || statusData.customer_email || '';
-            const guestName = customerObj.customerName || customerObj.name || savedCustomer.name || body.customerName || statusData.customer_name || 'Tamu Terhormat';
-            const guestPhone = customerObj.customerPhone || customerObj.phone || savedCustomer.phone || body.customerPhone || statusData.customer_phone || '-';
-            const itemTitle = customerObj.itemName || savedCustomer.itemName || body.itemName || 'Paket Wisata Hoola Holiday Bali';
+            const customField1 = statusData?.custom_field1;
+            const customField2 = statusData?.custom_field2;
+            const customField3 = statusData?.custom_field3 || '';
+            const [customPhone, customItem] = customField3.includes(' | ')
+              ? customField3.split(' | ')
+              : [customField3, ''];
+
+            const guestEmail = customerObj.customerEmail || customerObj.email || customField2 || savedCustomer.email || body.customerEmail || statusData.customer_email || '';
+            const guestName = customerObj.customerName || customerObj.name || customField1 || savedCustomer.name || body.customerName || statusData.customer_name || 'Tamu Terhormat';
+            const guestPhone = customerObj.customerPhone || customerObj.phone || (customPhone && customPhone !== '-' ? customPhone : '') || savedCustomer.phone || body.customerPhone || statusData.customer_phone || '-';
+            const itemTitle = customerObj.itemName || customItem || savedCustomer.itemName || body.itemName || 'Paket Wisata Hoola Holiday Bali';
 
             const emailPromise = dispatchBookingEmails(
               {

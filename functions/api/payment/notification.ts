@@ -73,14 +73,26 @@ export const onRequestPost = async (context: {
       const remainingBalance = isDP ? Math.round(grossNum * (70 / 30)) : 0;
       const totalAmount = grossNum + remainingBalance;
 
+      const customField1 = body.custom_field1;
+      const customField2 = body.custom_field2;
+      const customField3 = body.custom_field3 || '';
+      const [customPhone, customItem] = customField3.includes(' | ')
+        ? customField3.split(' | ')
+        : [customField3, ''];
+
+      const guestName = customField1 || body.customer_name || 'Tamu Terhormat';
+      const guestEmail = customField2 || body.customer_email || '';
+      const guestPhone = (customPhone && customPhone !== '-') ? customPhone : (body.customer_phone || '-');
+      const itemTitle = customItem || 'Paket Wisata Hoola Holiday Bali';
+
       const emailPromise = dispatchBookingEmails(
         {
           orderId: order_id,
           bookingType: 'tour',
-          itemName: 'Paket Tour Hoola Holiday Bali',
-          customerName: body.customer_name || 'Tamu Terhormat',
-          customerEmail: body.customer_email || 'nusawebworks@gmail.com',
-          customerPhone: body.customer_phone || '-',
+          itemName: itemTitle,
+          customerName: guestName,
+          customerEmail: guestEmail,
+          customerPhone: guestPhone,
           totalAmountIDR: totalAmount,
           grossAmountPaidIDR: grossNum,
           remainingBalanceIDR: remainingBalance,
@@ -89,7 +101,12 @@ export const onRequestPost = async (context: {
           status: resolvedStatus,
           paymentMethod: payment_type || 'Midtrans Online Payment',
         },
-        { ...env, RESEND_API_KEY: env.RESEND_API_KEY || atob('cmVfaDk5cVRSOHFfRVUzZkdDWm93ZjdyQnBRc0pqVDRtanpW') }
+        {
+          ...env,
+          RESEND_API_KEY: env.RESEND_API_KEY || atob('cmVfaDk5cVRSOHFfRVUzZkdDWm93ZjdyQnBRc0pqVDRtanpW'),
+          RESEND_FROM: env.RESEND_FROM || 'Hoola Holiday Bali <booking@balinikitour.biz.id>',
+          ADMIN_EMAIL: env.ADMIN_EMAIL || 'reyhanridwan30@gmail.com',
+        }
       );
 
       if (context.waitUntil) {
