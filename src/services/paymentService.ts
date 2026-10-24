@@ -206,15 +206,29 @@ export function openMidtransSnap(
 
 // 4. VERIFIKASI STATUS PEMBAYARAN LANGSUNG KE BACKEND SERVER (Anti-Manipulasi Frontend)
 // Memenuhi Persyaratan 6: "Jangan pernah menganggap pembayaran berhasil hanya berdasarkan redirect, query parameter, atau respons frontend."
+export interface VerifyCustomerData {
+  customerName?: string;
+  customerEmail?: string;
+  customerPhone?: string;
+  itemName?: string;
+  startDate?: string;
+  quantity?: number;
+  specialNotes?: string;
+}
+
 export async function verifyPaymentStatus(
-  orderId: string
+  orderId: string,
+  customerData?: VerifyCustomerData
 ): Promise<{ success: boolean; verified: boolean; record: VerifiedTransactionRecord; message?: string }> {
   const res = await fetch(`/api/payment/verify-status?orderId=${encodeURIComponent(orderId)}`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ orderId }),
+    body: JSON.stringify({
+      orderId,
+      customer: customerData,
+    }),
   });
 
   const data = await res.json();

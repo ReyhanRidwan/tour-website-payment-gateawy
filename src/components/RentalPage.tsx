@@ -158,7 +158,14 @@ export default function RentalPage({ initialVehicleId }: RentalPageProps) {
             setIsProcessingMidtrans(true);
             let verifiedStatus = 'SETTLEMENT';
             try {
-              const verifyRes = await verifyPaymentStatus(response.orderId);
+              const verifyRes = await verifyPaymentStatus(response.orderId, {
+                customerName: fullName,
+                customerEmail: email,
+                customerPhone: phone,
+                itemName: `Sewa ${selectedVehicle?.name || 'Armada'} (${durationDays} Hari)`,
+                startDate,
+                specialNotes,
+              });
               verifiedStatus = verifyRes?.record?.status || 'SETTLEMENT';
             } catch (err) {
               console.warn('Backend verification check:', err);

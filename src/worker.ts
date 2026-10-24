@@ -43,6 +43,10 @@ async function calculateSha512(message: string): Promise<string> {
   return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
+// In-memory cache untuk mempertahankan data tamu antar webhook & cegah duplikasi email
+const orderCustomerMap = new Map<string, any>();
+const emailedOrders = new Set<string>();
+
 export default {
   async fetch(request: Request, env: Env, ctx: { waitUntil?: (p: Promise<any>) => void }): Promise<Response> {
     const url = new URL(request.url);
@@ -205,6 +209,18 @@ export default {
           redirectUrl = `/?simulated_order=${orderId}`;
         }
 
+        // Simpan data customer ke in-memory map agar webhook & verify-status punya email & nama tamu asli
+        orderCustomerMap.set(orderId, {
+          name: customer.name,
+          email: customer.email,
+          phone: customer.phone,
+          itemName: pricing.itemName,
+          startDate: body.startDate,
+          quantity: body.quantity,
+          specialNotes: body.specialNotes || customer.notes,
+          paymentType,
+        });
+
         return jsonResponse({
           success: true,
           orderId,
@@ -263,21 +279,31 @@ export default {
           paymentType
         );
 
-        // Jika pembayaran sukses, kirimkan E-Voucher via Resend
-        if (isSuccess) {
+        // Jika pembayaran sukses dan email belum pernah dikirim untuk order ini
+        if (isSuccess && !emailedOrders.has(order_id)) {
+          emailedOrders.add(order_id);
+          const savedCustomer = orderCustomerMap.get(order_id) || {};
           const grossNum = Number(gross_amount) || 0;
           const isDP = paymentType === 'dp';
           const remainingBalance = isDP ? Math.round(grossNum * (70 / 30)) : 0;
           const totalAmount = grossNum + remainingBalance;
 
+          const guestEmail = savedCustomer.email || body.customer_email || '';
+          const guestName = savedCustomer.name || body.customer_name || 'Tamu Terhormat';
+          const guestPhone = savedCustomer.phone || body.customer_phone || '-';
+          const itemTitle = savedCustomer.itemName || 'Paket Wisata Hoola Holiday Bali';
+
           const emailPromise = dispatchBookingEmails(
             {
               orderId: order_id,
               bookingType: 'tour',
-              itemName: 'Paket Wisata Hoola Holiday Bali',
-              customerName: body.customer_name || 'Tamu Terhormat',
-              customerEmail: body.customer_email || env.ADMIN_EMAIL || 'reyhanridwan30@gmail.com',
-              customerPhone: body.customer_phone || '-',
+              itemName: itemTitle,
+              customerName: guestName,
+              customerEmail: guestEmail,
+              customerPhone: guestPhone,
+              startDate: savedCustomer.startDate,
+              quantity: savedCustomer.quantity,
+              specialNotes: savedCustomer.specialNotes,
               totalAmountIDR: totalAmount,
               grossAmountPaidIDR: grossNum,
               remainingBalanceIDR: remainingBalance,
@@ -286,7 +312,12 @@ export default {
               status: resolvedStatus,
               paymentMethod: payment_type || 'Midtrans Online Payment',
             },
-            { ...env, RESEND_API_KEY: resendApiKey }
+            {
+              ...env,
+              RESEND_API_KEY: resendApiKey,
+              RESEND_FROM: env.RESEND_FROM || 'Hoola Holiday Bali <booking@balinikitour.biz.id>',
+              ADMIN_EMAIL: env.ADMIN_EMAIL || 'reyhanridwan30@gmail.com',
+            }
           );
 
           if (ctx.waitUntil) {
@@ -378,15 +409,27 @@ export default {
             updatedAt: new Date().toISOString(),
           };
 
-          if (isSuccess) {
+          if (isSuccess && !emailedOrders.has(orderId)) {
+            emailedOrders.add(orderId);
+            const customerObj = body.customer || {};
+            const savedCustomer = orderCustomerMap.get(orderId) || {};
+
+            const guestEmail = customerObj.customerEmail || customerObj.email || savedCustomer.email || body.customerEmail || statusData.customer_email || '';
+            const guestName = customerObj.customerName || customerObj.name || savedCustomer.name || body.customerName || statusData.customer_name || 'Tamu Terhormat';
+            const guestPhone = customerObj.customerPhone || customerObj.phone || savedCustomer.phone || body.customerPhone || statusData.customer_phone || '-';
+            const itemTitle = customerObj.itemName || savedCustomer.itemName || body.itemName || 'Paket Wisata Hoola Holiday Bali';
+
             const emailPromise = dispatchBookingEmails(
               {
                 orderId,
                 bookingType: 'tour',
-                itemName: 'Paket Tour Hoola Holiday Bali',
-                customerName: statusData.customer_name || 'Tamu Hoola Holiday',
-                customerEmail: statusData.customer_email || env.ADMIN_EMAIL || 'reyhanridwan30@gmail.com',
-                customerPhone: statusData.customer_phone || '-',
+                itemName: itemTitle,
+                customerName: guestName,
+                customerEmail: guestEmail,
+                customerPhone: guestPhone,
+                startDate: customerObj.startDate || savedCustomer.startDate || body.startDate,
+                quantity: customerObj.quantity || savedCustomer.quantity || body.quantity,
+                specialNotes: customerObj.specialNotes || savedCustomer.specialNotes || body.specialNotes,
                 totalAmountIDR: totalAmount,
                 grossAmountPaidIDR: grossNum,
                 remainingBalanceIDR: remainingBalance,
@@ -395,7 +438,12 @@ export default {
                 status: authoritativeStatus,
                 paymentMethod: payment_type || 'Midtrans Online Payment',
               },
-              { ...env, RESEND_API_KEY: resendApiKey }
+              {
+                ...env,
+                RESEND_API_KEY: resendApiKey,
+                RESEND_FROM: env.RESEND_FROM || 'Hoola Holiday Bali <booking@balinikitour.biz.id>',
+                ADMIN_EMAIL: env.ADMIN_EMAIL || 'reyhanridwan30@gmail.com',
+              }
             );
 
             if (ctx.waitUntil) {

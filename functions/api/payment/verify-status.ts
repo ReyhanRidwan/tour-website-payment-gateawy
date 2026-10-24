@@ -100,14 +100,23 @@ export const onRequestPost = async (context: {
 
       // Auto trigger email jika pembayaran telah sukses
       if (isSuccess) {
+        const customerObj = body.customer || {};
+        const guestEmail = customerObj.customerEmail || customerObj.email || body.customerEmail || statusData.customer_email || '';
+        const guestName = customerObj.customerName || customerObj.name || body.customerName || statusData.customer_name || 'Tamu Terhormat';
+        const guestPhone = customerObj.customerPhone || customerObj.phone || body.customerPhone || statusData.customer_phone || '-';
+        const itemTitle = customerObj.itemName || body.itemName || 'Paket Wisata Hoola Holiday Bali';
+
         const emailPromise = dispatchBookingEmails(
           {
             orderId,
             bookingType: 'tour',
-            itemName: 'Paket Tour Hoola Holiday Bali',
-            customerName: statusData.customer_name || 'Tamu Hoola Holiday',
-            customerEmail: statusData.customer_email || 'nusawebworks@gmail.com',
-            customerPhone: statusData.customer_phone || '-',
+            itemName: itemTitle,
+            customerName: guestName,
+            customerEmail: guestEmail,
+            customerPhone: guestPhone,
+            startDate: customerObj.startDate || body.startDate,
+            quantity: customerObj.quantity || body.quantity,
+            specialNotes: customerObj.specialNotes || body.specialNotes,
             totalAmountIDR: totalAmount,
             grossAmountPaidIDR: grossNum,
             remainingBalanceIDR: remainingBalance,
@@ -116,7 +125,12 @@ export const onRequestPost = async (context: {
             status: authoritativeStatus,
             paymentMethod: payment_type || 'Midtrans Online Payment',
           },
-          { ...env, RESEND_API_KEY: env.RESEND_API_KEY || atob('cmVfaDk5cVRSOHFfRVUzZkdDWm93ZjdyQnBRc0pqVDRtanpW') }
+          {
+            ...env,
+            RESEND_API_KEY: env.RESEND_API_KEY || atob('cmVfaDk5cVRSOHFfRVUzZkdDWm93ZjdyQnBRc0pqVDRtanpW'),
+            RESEND_FROM: env.RESEND_FROM || 'Hoola Holiday Bali <booking@balinikitour.biz.id>',
+            ADMIN_EMAIL: env.ADMIN_EMAIL || 'reyhanridwan30@gmail.com',
+          }
         );
 
         if (context.waitUntil) {

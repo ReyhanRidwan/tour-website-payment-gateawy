@@ -374,7 +374,15 @@ export default function BookingModal({
           setIsProcessingMidtrans(true);
           let verifiedStatus = paymentType === 'dp' ? 'DP_PAID' : 'SETTLEMENT';
           try {
-            const verifyRes = await verifyPaymentStatus(session.orderId);
+            const verifyRes = await verifyPaymentStatus(session.orderId, {
+              customerName: fullName,
+              customerEmail: email,
+              customerPhone: phone,
+              itemName: currentExp.title,
+              startDate: date,
+              quantity: guests,
+              specialNotes: specialNotes,
+            });
             if (verifyRes.success && verifyRes.record) {
               verifiedStatus = verifyRes.record.status;
             }

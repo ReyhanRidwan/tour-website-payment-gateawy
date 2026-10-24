@@ -527,8 +527,11 @@ app.post(['/api/payment/verify-status', '/api/payment/verify-status/:orderId'], 
     }
 
     const record = transactionsDb.get(orderId);
-    if (!record) {
-      return res.status(404).json({ error: `Transaksi dengan ID ${orderId} tidak ditemukan.` });
+    const customerObj = req.body?.customer;
+    if (customerObj) {
+      if (customerObj.customerEmail || customerObj.email) record.customerEmail = customerObj.customerEmail || customerObj.email;
+      if (customerObj.customerName || customerObj.name) record.customerName = customerObj.customerName || customerObj.name;
+      if (customerObj.customerPhone || customerObj.phone) record.customerPhone = customerObj.customerPhone || customerObj.phone;
     }
 
     const { serverKey, isConfigured, coreApiBaseUrl } = getMidtransConfig();

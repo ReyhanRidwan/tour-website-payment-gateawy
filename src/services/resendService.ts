@@ -315,57 +315,47 @@ export async function dispatchBookingEmails(
   message: string;
 }> {
   const resendApiKey = env?.RESEND_API_KEY || (typeof process !== 'undefined' ? process.env?.RESEND_API_KEY : '');
-  const resendFrom = env?.RESEND_FROM || (typeof process !== 'undefined' ? process.env?.RESEND_FROM : '') || 'Hoola Holiday Bali <onboarding@resend.dev>';
-  const adminEmail = env?.ADMIN_EMAIL || (typeof process !== 'undefined' ? process.env?.ADMIN_EMAIL : '') || 'nusawebworks@gmail.com';
+  const resendFrom = env?.RESEND_FROM || (typeof process !== 'undefined' ? process.env?.RESEND_FROM : '') || 'Hoola Holiday Bali <booking@balinikitour.biz.id>';
+  const adminEmail = env?.ADMIN_EMAIL || (typeof process !== 'undefined' ? process.env?.ADMIN_EMAIL : '') || 'reyhanridwan30@gmail.com';
 
   // JIKA RESEND API KEY TERSEDIA (METODE RESEND DI CLOUDFLARE WORKERS / NODE)
   if (resendApiKey && resendApiKey.startsWith('re_')) {
     let customerSent = false;
     let adminSent = false;
 
-    // A. Kirim E-Voucher ke Tamu
-    try {
-      await sendEmailViaResendApi({
-        apiKey: resendApiKey,
-        from: resendFrom,
-        to: data.customerEmail,
-        subject: `E-Voucher Resmi Reservasi [${data.orderId}] - Hoola Holiday Bali`,
-        html: generateCustomerEmailHtml(data),
-      });
-      customerSent = true;
-      console.log(`[Resend API] Berhasil mengirim email ke tamu: ${data.customerEmail}`);
-    } catch (err: any) {
-      console.error(`[Resend API Error Tamu]: ${err.message}`);
+    // A. Kirim E-Voucher ke Tamu (Hanya jika email tamu valid dan terisi)
+    if (data.customerEmail && data.customerEmail.includes('@')) {
+      try {
+        await sendEmailViaResendApi({
+          apiKey: resendApiKey,
+          from: resendFrom,
+          to: data.customerEmail,
+          subject: `E-Voucher Resmi Reservasi [${data.orderId}] - Hoola Holiday Bali`,
+          html: generateCustomerEmailHtml(data),
+        });
+        customerSent = true;
+        console.log(`[Resend API] Berhasil mengirim E-Voucher ke tamu: ${data.customerEmail}`);
+      } catch (err: any) {
+        console.error(`[Resend API Error Tamu]: ${err.message}`);
+      }
+    } else {
+      console.warn(`[Resend API] Email tamu tidak valid (${data.customerEmail}), lewati kirim voucher ke tamu.`);
     }
 
-    // B. Kirim Notifikasi ke Admin
-    try {
-      await sendEmailViaResendApi({
-        apiKey: resendApiKey,
-        from: resendFrom,
-        to: adminEmail,
-        subject: `🔔 BOOKING BARU [${data.orderId}] - ${data.customerName} (${data.itemName})`,
-        html: generateAdminEmailHtml(data),
-      });
-      adminSent = true;
-      console.log(`[Resend API] Berhasil mengirim email ke admin: ${adminEmail}`);
-    } catch (err: any) {
-      console.error(`[Resend API Error Admin]: ${err.message}`);
-      // Fallback sandbox Resend (jika domain belum diverifikasi dan hanya bisa kirim ke email pemilik akun)
-      if (err.message && err.message.includes('testing emails to your own email address')) {
-        try {
-          await sendEmailViaResendApi({
-            apiKey: resendApiKey,
-            from: resendFrom,
-            to: 'reyhanridwan30@gmail.com',
-            subject: `🔔 BOOKING BARU [${data.orderId}] - ${data.customerName} (${data.itemName})`,
-            html: generateAdminEmailHtml(data),
-          });
-          adminSent = true;
-          console.log(`[Resend Sandbox] Notifikasi berhasil dialihkan ke email akun Resend: reyhanridwan30@gmail.com`);
-        } catch (fbErr: any) {
-          console.error(`[Resend Sandbox Fallback Error]: ${fbErr.message}`);
-        }
+    // B. Kirim Notifikasi Pesanan Baru ke Admin (Hanya ke adminEmail)
+    if (adminEmail && adminEmail.includes('@')) {
+      try {
+        await sendEmailViaResendApi({
+          apiKey: resendApiKey,
+          from: resendFrom,
+          to: adminEmail,
+          subject: `🔔 BOOKING BARU [${data.orderId}] - ${data.customerName} (${data.itemName})`,
+          html: generateAdminEmailHtml(data),
+        });
+        adminSent = true;
+        console.log(`[Resend API] Berhasil mengirim notifikasi order ke admin: ${adminEmail}`);
+      } catch (err: any) {
+        console.error(`[Resend API Error Admin]: ${err.message}`);
       }
     }
 
