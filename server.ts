@@ -442,8 +442,10 @@ app.post('/api/payment/notification', async (req: Request, res: Response) => {
         .createHash('sha512')
         .update(`${order_id}${status_code}${gross_amount}${serverKey}`)
         .digest('hex');
+      const sigBuf = Buffer.from(signature_key.toLowerCase(), 'utf8');
+      const expBuf = Buffer.from(expectedSignature.toLowerCase(), 'utf8');
 
-      if (signature_key.toLowerCase() !== expectedSignature.toLowerCase()) {
+      if (sigBuf.length !== expBuf.length || !crypto.timingSafeEqual(sigBuf, expBuf)) {
         console.warn(`[Security Alert] Invalid signature for order: ${order_id}`);
         return res.status(403).json({ error: 'Signature keamanan tidak valid (Forbidden).' });
       }

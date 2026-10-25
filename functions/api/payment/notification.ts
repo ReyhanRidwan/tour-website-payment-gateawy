@@ -10,6 +10,16 @@ async function calculateSha512(message: string): Promise<string> {
   return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
+function timingSafeEqual(a: string, b: string): boolean {
+  if (typeof a !== 'string' || typeof b !== 'string') return false;
+  if (a.length !== b.length) return false;
+  let mismatch = 0;
+  for (let i = 0; i < a.length; i++) {
+    mismatch |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return mismatch === 0;
+}
+
 export const onRequestPost = async (context: {
   request: Request;
   env: Record<string, string>;
@@ -44,12 +54,20 @@ export const onRequestPost = async (context: {
       serverKey.length > 10
     );
 
-    // 1. Validasi Signature SHA-512
-    if (isConfigured && signature_key) {
+    // 1. Wajibkan signature_key (Unauthorized jika kosong)
+    if (!signature_key || typeof signature_key !== 'string') {
+      console.warn(`[Security Alert] Missing signature_key for order: ${order_id}`);
+      return new Response(JSON.stringify({ error: 'Missing security signature_key (Unauthorized).' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (isConfigured) {
       const rawString = `${order_id}${status_code}${gross_amount}${serverKey}`;
       const expectedSignature = await calculateSha512(rawString);
 
-      if (signature_key.toLowerCase() !== expectedSignature.toLowerCase()) {
+      if (!timingSafeEqual(signature_key.toLowerCase(), expectedSignature.toLowerCase())) {
         console.warn(`[Security Alert] Invalid signature for order: ${order_id}`);
         return new Response(JSON.stringify({ error: 'Signature keamanan tidak valid (Forbidden).' }), {
           status: 403,

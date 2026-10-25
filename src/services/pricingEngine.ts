@@ -57,33 +57,47 @@ export function calculateOrderPricing(params: {
   paymentType: 'dp' | 'full';
   dpPercentage?: number;
 }): PricingResult {
-  const { bookingType, itemId, quantity, addons, driverOption, paymentType, dpPercentage } = params;
+  const { bookingType, itemId, quantity, addons, driverOption = 'with', paymentType, dpPercentage } = params;
+
+  const qty = Math.floor(Number(quantity));
+  if (isNaN(qty) || qty < 1 || qty > 50) {
+    throw new Error('Jumlah pax atau durasi sewa harus berupa angka positif antara 1 dan 50.');
+  }
+
+  if (paymentType !== 'dp' && paymentType !== 'full') {
+    throw new Error('Tipe pembayaran tidak valid. Harus "dp" atau "full".');
+  }
 
   let itemName = '';
   let officialTotalUSD = 0;
   let officialTotalIDR = 0;
 
   if (bookingType === 'rental') {
-    const vehicle = OFFICIAL_VEHICLE_PRICES[itemId] || {
-      name: 'Rental Kendaraan Bali',
-      withDriver: 500000,
-      withoutDriver: 350000,
-    };
-    itemName = `${vehicle.name} (${driverOption === 'without' ? 'Lepas Kunci' : 'Dengan Supir'})`;
-    const ratePerDay = driverOption === 'without' ? vehicle.withoutDriver : vehicle.withDriver;
-    const subtotalIDR = ratePerDay * Math.max(1, Number(quantity));
+    const vehicle = OFFICIAL_VEHICLE_PRICES[itemId];
+    if (!vehicle) {
+      throw new Error(`Armada rental dengan ID "${itemId}" tidak terdaftar dalam sistem resmi.`);
+    }
+
+    const isWithoutDriver = driverOption === 'without';
+    itemName = `${vehicle.name} (${isWithoutDriver ? 'Lepas Kunci' : 'Dengan Supir'})`;
+    const ratePerDay = isWithoutDriver ? vehicle.withoutDriver : vehicle.withDriver;
+    const subtotalIDR = ratePerDay * qty;
     const taxIDR = Math.round(subtotalIDR * 0.1);
     officialTotalIDR = subtotalIDR + taxIDR;
     officialTotalUSD = Math.round(officialTotalIDR / USD_TO_IDR_RATE);
   } else {
-    const tour = OFFICIAL_TOUR_PRICES[itemId] || { title: 'Private Tour Bali', priceUSD: 150 };
+    const tour = OFFICIAL_TOUR_PRICES[itemId];
+    if (!tour) {
+      throw new Error(`Paket wisata dengan ID "${itemId}" tidak terdaftar dalam katalog resmi.`);
+    }
+
     itemName = tour.title;
-    const baseUSD = tour.priceUSD * Math.max(1, Number(quantity));
+    const baseUSD = tour.priceUSD * qty;
 
     let addonUSD = 0;
     if (Array.isArray(addons)) {
       for (const addonId of addons) {
-        if (OFFICIAL_ADDON_PRICES[addonId]) {
+        if (typeof addonId === 'string' && OFFICIAL_ADDON_PRICES[addonId]) {
           addonUSD += OFFICIAL_ADDON_PRICES[addonId];
         }
       }
@@ -95,7 +109,10 @@ export function calculateOrderPricing(params: {
     officialTotalIDR = officialTotalUSD * USD_TO_IDR_RATE;
   }
 
-  const effectiveDpPercent = Math.min(100, Math.max(10, Number(dpPercentage) || 30));
+  const effectiveDpPercent = paymentType === 'dp'
+    ? Math.min(100, Math.max(10, Math.floor(Number(dpPercentage) || 30)))
+    : 100;
+
   let grossAmountIDR = officialTotalIDR;
   let remainingBalanceIDR = 0;
 
@@ -112,6 +129,11 @@ export function calculateOrderPricing(params: {
     grossAmountIDR,
     remainingBalanceIDR,
   };
+}
+
+export function verifyGrossAmountMatches(expected: number, actual: string | number): boolean {
+  const parsed = Math.round(Number(actual));
+  return !isNaN(parsed) && parsed === Math.round(expected);
 }
 
 export function resolveMidtransStatus(

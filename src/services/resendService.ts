@@ -25,6 +25,33 @@ export interface BookingEmailData {
   specialNotes?: string;
 }
 
+export function escapeHtml(str: any): string {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+export function normalizeWhatsAppNumber(phone: string): { cleanPhone: string; waUrl: string } {
+  let digits = (phone || '').replace(/\D/g, '');
+  if (!digits) {
+    return { cleanPhone: '-', waUrl: '#' };
+  }
+  if (digits.startsWith('0')) {
+    digits = '62' + digits.slice(1);
+  }
+  if (digits.length < 9 || digits.length > 16) {
+    return { cleanPhone: escapeHtml(phone), waUrl: '#' };
+  }
+  return {
+    cleanPhone: `+${digits}`,
+    waUrl: `https://wa.me/${digits}`,
+  };
+}
+
 export function formatIDR(amount: number): string {
   return new Intl.NumberFormat('id-ID', {
     style: 'currency',
@@ -38,8 +65,14 @@ export function generateCustomerEmailHtml(data: BookingEmailData): string {
   const isDP = data.paymentType === 'dp';
   const statusBadgeColor = isDP ? '#d97706' : '#059669';
   const statusBadgeText = isDP
-    ? `DOWN PAYMENT ${data.dpPercentage}% TERVERIFIKASI`
+    ? `DOWN PAYMENT ${Math.round(data.dpPercentage)}% TERVERIFIKASI`
     : 'PEMBAYARAN LUNAS 100% TERVERIFIKASI';
+
+  const safeCustomerName = escapeHtml(data.customerName || 'Tamu Terhormat');
+  const safeOrderId = escapeHtml(data.orderId);
+  const safeItemName = escapeHtml(data.itemName);
+  const safeCustomerPhone = escapeHtml(data.customerPhone || '-');
+  const safePaymentMethod = escapeHtml(data.paymentMethod || 'Midtrans Snap Gateway');
 
   return `<!DOCTYPE html>
 <html lang="id">
@@ -82,7 +115,7 @@ export function generateCustomerEmailHtml(data: BookingEmailData): string {
     </div>
 
     <div class="body">
-      <div class="greeting">Om Swastyastu, ${data.customerName}!</div>
+      <div class="greeting">Om Swastyastu, ${safeCustomerName}!</div>
       <p class="intro-text">
         Terima kasih telah melakukan reservasi bersama <strong>Hoola Holiday Bali</strong>. 
         Pembayaran Anda melalui gerbang pembayaran <strong>Midtrans</strong> telah berhasil diverifikasi secara resmi.
@@ -90,36 +123,36 @@ export function generateCustomerEmailHtml(data: BookingEmailData): string {
 
       <div class="voucher-card">
         <div class="voucher-title">KODE RESERVASI / E-VOUCHER</div>
-        <div class="voucher-code">${data.orderId}</div>
+        <div class="voucher-code">${safeOrderId}</div>
 
         <table class="detail-table">
           <tr>
             <td class="detail-label">Paket / Layanan</td>
-            <td class="detail-value">${data.itemName}</td>
+            <td class="detail-value">${safeItemName}</td>
           </tr>
           ${data.startDate ? `
           <tr>
             <td class="detail-label">Tanggal Pelaksanaan</td>
-            <td class="detail-value">${data.startDate}</td>
+            <td class="detail-value">${escapeHtml(data.startDate)}</td>
           </tr>` : ''}
           ${data.quantity ? `
           <tr>
             <td class="detail-label">Jumlah Tamu / Durasi</td>
-            <td class="detail-value">${data.quantity} ${data.bookingType === 'rental' ? 'Hari' : 'Orang (Pax)'}</td>
+            <td class="detail-value">${escapeHtml(data.quantity)} ${data.bookingType === 'rental' ? 'Hari' : 'Orang (Pax)'}</td>
           </tr>` : ''}
           ${data.deliveryLocation ? `
           <tr>
             <td class="detail-label">Lokasi Antar/Jemput</td>
-            <td class="detail-value">${data.deliveryLocation}</td>
+            <td class="detail-value">${escapeHtml(data.deliveryLocation)}</td>
           </tr>` : ''}
           ${data.driverOption ? `
           <tr>
             <td class="detail-label">Skema Armada</td>
-            <td class="detail-value">${data.driverOption === 'with' ? 'Dengan Supir & BBM' : 'Lepas Kunci'}</td>
+            <td class="detail-value">${data.driverOption === 'with' ? 'Dengan Supir &amp; BBM' : 'Lepas Kunci'}</td>
           </tr>` : ''}
           <tr>
             <td class="detail-label">Metode Pembayaran</td>
-            <td class="detail-value">${data.paymentMethod || 'Midtrans Snap Gateway'}</td>
+            <td class="detail-value">${safePaymentMethod}</td>
           </tr>
           <tr>
             <td class="detail-label">Total Nilai Paket</td>
@@ -140,7 +173,7 @@ export function generateCustomerEmailHtml(data: BookingEmailData): string {
       <div class="highlight-box">
         <div class="highlight-title">📍 INFORMASI PENJEMPUTAN RESMI</div>
         <p class="highlight-desc">
-          Tim Concierge Hoola Holiday Bali akan menghubungi WhatsApp Anda di nomor <strong>${data.customerPhone}</strong> 
+          Tim Concierge Hoola Holiday Bali akan menghubungi WhatsApp Anda di nomor <strong>${safeCustomerPhone}</strong> 
           H-1 sebelum jadwal tur untuk konfirmasi jam penjemputan, plat nomor armada pribadi, serta nama supir VIP Anda.
         </p>
       </div>
@@ -155,8 +188,8 @@ export function generateCustomerEmailHtml(data: BookingEmailData): string {
 
     <div class="footer">
       <div><strong>Hoola Holiday Bali</strong> • Jl. Sunset Road No. 88, Kuta, Badung, Bali 80361</div>
-      <div style="margin-top: 4px;">WhatsApp Concierge: <a class="contact-link" href="https://wa.me/628123456789">+62 812-3456-789</a></div>
-      <div style="margin-top: 10px; font-size: 11px; color: #a8a29e;">Konfirmasi diterbitkan otomatis oleh Cloudflare & Midtrans Payment Gateway.</div>
+      <div style="margin-top: 4px;">WhatsApp Concierge: <a class="contact-link" href="https://wa.me/628123456789" target="_blank" rel="noopener noreferrer">+62 812-3456-789</a></div>
+      <div style="margin-top: 10px; font-size: 11px; color: #a8a29e;">Konfirmasi diterbitkan otomatis oleh Cloudflare &amp; Midtrans Payment Gateway.</div>
     </div>
   </div>
 </body>
@@ -170,10 +203,15 @@ export function generateAdminEmailHtml(data: BookingEmailData): string {
   const customerName = data.customerName || 'Tamu Terhormat';
   const customerEmail = data.customerEmail || '-';
   const itemName = data.itemName || 'Paket Wisata Hoola Holiday Bali';
-  const cleanPhone = customerPhone.replace(/\D/g, '');
-  const waUrl = cleanPhone
-    ? (cleanPhone.startsWith('0') ? `https://wa.me/62${cleanPhone.slice(1)}` : `https://wa.me/${cleanPhone}`)
-    : '#';
+
+  const wa = normalizeWhatsAppNumber(customerPhone);
+  const safeCustomerName = escapeHtml(customerName);
+  const safeCustomerPhone = escapeHtml(wa.cleanPhone);
+  const safeCustomerEmail = escapeHtml(customerEmail);
+  const safeItemName = escapeHtml(itemName);
+  const safeOrderId = escapeHtml(data.orderId);
+  const safePaymentMethod = escapeHtml(data.paymentMethod || 'Midtrans Online Payment');
+  const safeSpecialNotes = escapeHtml(data.specialNotes || '');
 
   return `<!DOCTYPE html>
 <html lang="id">
@@ -197,55 +235,55 @@ export function generateAdminEmailHtml(data: BookingEmailData): string {
   <div class="container">
     <div class="header">
       <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; color: #a1a1aa; font-family: monospace;">Hoola Holiday Bali Admin Alert</div>
-      <h2 class="title">🔔 ORDERAN BARU MASUK (${isDP ? 'DP 30%' : 'LUNAS 100%'})</h2>
+      <h2 class="title">🔔 ORDERAN BARU MASUK (${isDP ? `DP ${Math.round(data.dpPercentage)}%` : 'LUNAS 100%'})</h2>
     </div>
 
     <div class="body">
       <p style="font-size: 14px; color: #334155; margin-top: 0;">
-        Ada reservasi baru yang telah berhasil membayar via <strong>Midtrans (${data.paymentMethod || 'Online Payment'})</strong>.
+        Ada reservasi baru yang telah berhasil membayar via <strong>Midtrans (${safePaymentMethod})</strong>.
         Segera hubungi tamu untuk konfirmasi penjemputan:
       </p>
 
       <div style="text-align: center;">
-        <a class="wa-button" href="${waUrl}" target="_blank">
-          💬 Chat WhatsApp Tamu Sekarang (${customerPhone})
+        <a class="wa-button" href="${wa.waUrl}" target="_blank" rel="noopener noreferrer">
+          💬 Chat WhatsApp Tamu Sekarang (${safeCustomerPhone})
         </a>
       </div>
 
       <table class="data-table">
         <tr>
           <td class="label">Order ID</td>
-          <td class="value" style="font-family: monospace; font-size: 14px; color: #b45309;">${data.orderId}</td>
+          <td class="value" style="font-family: monospace; font-size: 14px; color: #b45309;">${safeOrderId}</td>
         </tr>
         <tr>
           <td class="label">Nama Tamu</td>
-          <td class="value">${customerName}</td>
+          <td class="value">${safeCustomerName}</td>
         </tr>
         <tr>
           <td class="label">WhatsApp Tamu</td>
-          <td class="value">${customerPhone}</td>
+          <td class="value">${safeCustomerPhone}</td>
         </tr>
         <tr>
           <td class="label">Email Tamu</td>
-          <td class="value">${customerEmail}</td>
+          <td class="value">${safeCustomerEmail}</td>
         </tr>
         <tr>
           <td class="label">Paket / Layanan</td>
-          <td class="value">${itemName}</td>
+          <td class="value">${safeItemName}</td>
         </tr>
         ${data.startDate ? `
         <tr>
           <td class="label">Tanggal Trip</td>
-          <td class="value">${data.startDate}</td>
+          <td class="value">${escapeHtml(data.startDate)}</td>
         </tr>` : ''}
         ${data.quantity ? `
         <tr>
-          <td class="label">Jumlah Pax</td>
-          <td class="value">${data.quantity} Orang</td>
+          <td class="label">Jumlah Pax / Hari</td>
+          <td class="value">${escapeHtml(data.quantity)} Orang</td>
         </tr>` : ''}
         <tr>
           <td class="label">Status Pembayaran</td>
-          <td class="value" style="color: #16a34a; font-weight: 800;">${isDP ? `DP ${data.dpPercentage}% (SUKSES)` : 'LUNAS (SUKSES)'}</td>
+          <td class="value" style="color: #16a34a; font-weight: 800;">${isDP ? `DP ${Math.round(data.dpPercentage)}% (SUKSES)` : 'LUNAS (SUKSES)'}</td>
         </tr>
         <tr>
           <td class="label">Nominal Masuk (Midtrans)</td>
@@ -256,10 +294,10 @@ export function generateAdminEmailHtml(data: BookingEmailData): string {
           <td class="label">Sisa Pelunasan Tamu</td>
           <td class="value" style="color: #d97706; font-weight: 800;">${formatIDR(data.remainingBalanceIDR)} (Tagih saat serah terima)</td>
         </tr>` : ''}
-        ${data.specialNotes ? `
+        ${safeSpecialNotes ? `
         <tr>
           <td class="label">Catatan Tamu</td>
-          <td class="value">${data.specialNotes}</td>
+          <td class="value">${safeSpecialNotes}</td>
         </tr>` : ''}
       </table>
     </div>
