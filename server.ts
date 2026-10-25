@@ -301,11 +301,9 @@ app.post('/api/payment/create-transaction', async (req: Request, res: Response) 
       snapToken = midtransData.token;
       redirectUrl = midtransData.redirect_url;
     } else {
-      // 2. Mode Simulasi Pengujian Otomatis (Jika pengguna belum memasukkan MIDTRANS_SERVER_KEY di .env)
-      // Ini membuat aplikasi tetap dapat dicoba secara interaktif tanpa error crash.
-      isSimulation = true;
-      snapToken = `simulated-snap-${orderId}`;
-      redirectUrl = `/?simulated_order=${orderId}`;
+      return res.status(503).json({
+        error: 'Kunci MIDTRANS_SERVER_KEY belum terpasang di server. Mohon pastikan secret MIDTRANS_SERVER_KEY telah diatur di Cloudflare / environment.',
+      });
     }
 
     // Simpan data transaksi ke database backend

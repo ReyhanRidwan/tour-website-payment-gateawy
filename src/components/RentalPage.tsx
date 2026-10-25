@@ -146,8 +146,12 @@ export default function RentalPage({ initialVehicleId }: RentalPageProps) {
         dpPercentage,
       });
 
-      if (!response || !response.snapToken) {
-        throw new Error('Gagal mendapatkan token transaksi pembayaran dari server.');
+      if (!response || !response.snapToken || response.isSimulation) {
+        throw new Error(
+          response?.isSimulation
+            ? 'Kunci server Midtrans sedang disiapkan atau belum terpasang di Cloudflare. Transaksi tidak dapat dilanjutkan sebelum kunci siap.'
+            : 'Gagal mendapatkan token transaksi pembayaran dari server.'
+        );
       }
 
       const snapToken = response.snapToken;

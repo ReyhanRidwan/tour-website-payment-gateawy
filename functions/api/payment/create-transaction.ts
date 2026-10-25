@@ -64,71 +64,70 @@ export const onRequestPost = async (context: {
       serverKey.length > 10
     );
 
-    let snapToken = '';
-    let redirectUrl = '';
-    let isSimulation = false;
-
-    if (isConfigured) {
-      // Panggil Midtrans Snap API via fetch (Didukung penuh oleh Cloudflare Workers)
-      const authHeader = `Basic ${btoa(`${serverKey}:`)}`;
-
-      const midtransPayload = {
-        transaction_details: {
-          order_id: orderId,
-          gross_amount: pricing.grossAmountIDR,
-        },
-        item_details: [
-          {
-            id: itemId,
-            price: pricing.grossAmountIDR,
-            quantity: 1,
-            name: (paymentType === 'dp'
-              ? `DP ${pricing.effectiveDpPercent}% - ${pricing.itemName}`
-              : `Lunas - ${pricing.itemName}`
-            ).slice(0, 50),
-          },
-        ],
-        customer_details: {
-          first_name: customer.name.slice(0, 50),
-          email: customer.email,
-          phone: customer.phone,
-        },
-        credit_card: {
-          secure: true,
-        },
-        custom_field1: (customer.name || '').slice(0, 255),
-        custom_field2: (customer.email || '').slice(0, 255),
-        custom_field3: `${customer.phone || '-'} | ${pricing.itemName || 'Tour'}`.slice(0, 255),
-        callbacks: {
-          finish: `/?order_id=${orderId}&payment_status=finish`,
-        },
-      };
-
-      const midtransRes = await fetch(snapBaseUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'Authorization': authHeader,
-        },
-        body: JSON.stringify(midtransPayload),
-      });
-
-      const midtransData = (await midtransRes.json()) as any;
-
-      if (!midtransRes.ok || !midtransData.token) {
-        throw new Error(
-          midtransData.error_messages?.join(', ') || 'Gagal membuat sesi pembayaran di server Midtrans.'
-        );
-      }
-
-      snapToken = midtransData.token;
-      redirectUrl = midtransData.redirect_url;
-    } else {
-      isSimulation = true;
-      snapToken = `simulated-snap-${orderId}`;
-      redirectUrl = `/?simulated_order=${orderId}`;
+    if (!isConfigured) {
+      return new Response(
+        JSON.stringify({
+          error: 'Kunci MIDTRANS_SERVER_KEY belum terpasang atau sedang disiapkan di server Cloudflare. Mohon pastikan secret MIDTRANS_SERVER_KEY telah diatur di Cloudflare Workers.',
+        }),
+        { status: 503, headers: { 'Content-Type': 'application/json' } }
+      );
     }
+
+    // Panggil Midtrans Snap API via fetch (Didukung penuh oleh Cloudflare Workers)
+    const authHeader = `Basic ${btoa(`${serverKey}:`)}`;
+
+    const midtransPayload = {
+      transaction_details: {
+        order_id: orderId,
+        gross_amount: pricing.grossAmountIDR,
+      },
+      item_details: [
+        {
+          id: itemId,
+          price: pricing.grossAmountIDR,
+          quantity: 1,
+          name: (paymentType === 'dp'
+            ? `DP ${pricing.effectiveDpPercent}% - ${pricing.itemName}`
+            : `Lunas - ${pricing.itemName}`
+          ).slice(0, 50),
+        },
+      ],
+      customer_details: {
+        first_name: customer.name.slice(0, 50),
+        email: customer.email,
+        phone: customer.phone,
+      },
+      credit_card: {
+        secure: true,
+      },
+      custom_field1: (customer.name || '').slice(0, 255),
+      custom_field2: (customer.email || '').slice(0, 255),
+      custom_field3: `${customer.phone || '-'} | ${pricing.itemName || 'Tour'}`.slice(0, 255),
+      callbacks: {
+        finish: `/?order_id=${orderId}&payment_status=finish`,
+      },
+    };
+
+    const midtransRes = await fetch(snapBaseUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'Authorization': authHeader,
+      },
+      body: JSON.stringify(midtransPayload),
+    });
+
+    const midtransData = (await midtransRes.json()) as any;
+
+    if (!midtransRes.ok || !midtransData.token) {
+      throw new Error(
+        midtransData.error_messages?.join(', ') || 'Gagal membuat sesi pembayaran di server Midtrans.'
+      );
+    }
+
+    const snapToken = midtransData.token;
+    const redirectUrl = midtransData.redirect_url;
 
     return new Response(
       JSON.stringify({
@@ -136,7 +135,7 @@ export const onRequestPost = async (context: {
         orderId,
         snapToken,
         redirectUrl,
-        isSimulation,
+        isSimulation: false,
         paymentType,
         dpPercentage: pricing.effectiveDpPercent,
         grossAmountIDR: pricing.grossAmountIDR,

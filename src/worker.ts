@@ -150,67 +150,63 @@ export default {
         const prefix = paymentType === 'dp' ? 'HHB-DP' : 'HHB-FULL';
         const orderId = `${prefix}-${timestamp}-${randomSuffix}`;
 
-        let snapToken = '';
-        let redirectUrl = '';
-        let isSimulation = false;
-
-        if (serverKey && serverKey.length > 10) {
-          const authHeader = `Basic ${btoa(`${serverKey}:`)}`;
-
-          const midtransPayload = {
-            transaction_details: {
-              order_id: orderId,
-              gross_amount: pricing.grossAmountIDR,
-            },
-            item_details: [
-              {
-                id: itemId,
-                price: pricing.grossAmountIDR,
-                quantity: 1,
-                name: (paymentType === 'dp'
-                  ? `DP ${pricing.effectiveDpPercent}% - ${pricing.itemName}`
-                  : `Lunas - ${pricing.itemName}`
-                ).slice(0, 50),
-              },
-            ],
-            customer_details: {
-              first_name: customer.name.slice(0, 50),
-              email: customer.email,
-              phone: customer.phone,
-            },
-            credit_card: {
-              secure: true,
-            },
-            custom_field1: (customer.name || '').slice(0, 255),
-            custom_field2: (customer.email || '').slice(0, 255),
-            custom_field3: `${customer.phone || '-'} | ${pricing.itemName || 'Tour'}`.slice(0, 255),
-            callbacks: {
-              finish: `/?order_id=${orderId}&payment_status=finish`,
-            },
-          };
-
-          const midtransRes = await fetch(snapBaseUrl, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Accept': 'application/json',
-              'Authorization': authHeader,
-            },
-            body: JSON.stringify(midtransPayload),
-          });
-
-          const midtransData = (await midtransRes.json()) as any;
-          if (!midtransRes.ok || !midtransData.token) {
-            throw new Error(midtransData.error_messages?.join(', ') || 'Gagal membuat sesi transaksi Midtrans.');
-          }
-
-          snapToken = midtransData.token;
-          redirectUrl = midtransData.redirect_url;
-        } else {
-          isSimulation = true;
-          snapToken = `simulated-snap-${orderId}`;
-          redirectUrl = `/?simulated_order=${orderId}`;
+        if (!serverKey || serverKey.length <= 10) {
+          return jsonResponse({
+            error: 'Kunci MIDTRANS_SERVER_KEY belum terpasang atau sedang disiapkan di server Cloudflare. Mohon pastikan secret MIDTRANS_SERVER_KEY telah diatur di Cloudflare Workers.',
+          }, 503);
         }
+
+        const authHeader = `Basic ${btoa(`${serverKey}:`)}`;
+
+        const midtransPayload = {
+          transaction_details: {
+            order_id: orderId,
+            gross_amount: pricing.grossAmountIDR,
+          },
+          item_details: [
+            {
+              id: itemId,
+              price: pricing.grossAmountIDR,
+              quantity: 1,
+              name: (paymentType === 'dp'
+                ? `DP ${pricing.effectiveDpPercent}% - ${pricing.itemName}`
+                : `Lunas - ${pricing.itemName}`
+              ).slice(0, 50),
+            },
+          ],
+          customer_details: {
+            first_name: customer.name.slice(0, 50),
+            email: customer.email,
+            phone: customer.phone,
+          },
+          credit_card: {
+            secure: true,
+          },
+          custom_field1: (customer.name || '').slice(0, 255),
+          custom_field2: (customer.email || '').slice(0, 255),
+          custom_field3: `${customer.phone || '-'} | ${pricing.itemName || 'Tour'}`.slice(0, 255),
+          callbacks: {
+            finish: `/?order_id=${orderId}&payment_status=finish`,
+          },
+        };
+
+        const midtransRes = await fetch(snapBaseUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'Authorization': authHeader,
+          },
+          body: JSON.stringify(midtransPayload),
+        });
+
+        const midtransData = (await midtransRes.json()) as any;
+        if (!midtransRes.ok || !midtransData.token) {
+          throw new Error(midtransData.error_messages?.join(', ') || 'Gagal membuat sesi transaksi Midtrans.');
+        }
+
+        const snapToken = midtransData.token;
+        const redirectUrl = midtransData.redirect_url;
 
         // Simpan data customer ke in-memory map agar webhook & verify-status punya email & nama tamu asli
         orderCustomerMap.set(orderId, {
@@ -229,7 +225,7 @@ export default {
           orderId,
           snapToken,
           redirectUrl,
-          isSimulation,
+          isSimulation: false,
           paymentType,
           dpPercentage: pricing.effectiveDpPercent,
           grossAmountIDR: pricing.grossAmountIDR,
@@ -372,69 +368,61 @@ export default {
           return jsonResponse({ error: 'orderId wajib diisi.' }, 400);
         }
 
-        if (serverKey && serverKey.length > 10 && !orderId.startsWith('simulated-')) {
-          const authHeader = `Basic ${btoa(`${serverKey}:`)}`;
-          const midtransRes = await fetch(`${coreApiBaseUrl}/${encodeURIComponent(orderId)}/status`, {
-            method: 'GET',
-            headers: {
-              'Accept': 'application/json',
-              'Authorization': authHeader,
-            },
-          });
-
-          if (!midtransRes.ok) {
-            return jsonResponse({
-              success: true,
-              verified: false,
-              message: 'Status di Midtrans belum terupdate atau masih diproses.',
-            });
-          }
-
-          const statusData = (await midtransRes.json()) as any;
-          const { transaction_status, fraud_status, gross_amount, payment_type, transaction_id } = statusData;
-
-          const paymentType: 'dp' | 'full' = orderId.startsWith('HHB-DP') ? 'dp' : 'full';
-          const { status: authoritativeStatus, isSuccess } = resolveMidtransStatus(
-            transaction_status,
-            fraud_status,
-            paymentType
-          );
-
-          const grossNum = Number(gross_amount) || 0;
-          const isDP = paymentType === 'dp';
-          const remainingBalance = isDP ? Math.round(grossNum * (70 / 30)) : 0;
-          const totalAmount = grossNum + remainingBalance;
-
-          const record = {
-            orderId,
-            bookingType: 'tour',
-            itemName: 'Paket Tour Hoola Holiday Bali',
-            totalAmountIDR: totalAmount,
-            grossAmountPaidIDR: grossNum,
-            remainingBalanceIDR: remainingBalance,
-            paymentType,
-            dpPercentage: 30,
-            status: authoritativeStatus,
-            paymentMethod: payment_type || 'Midtrans Online Payment',
-            midtransTransactionId: transaction_id,
-            isSimulation: false,
-            updatedAt: new Date().toISOString(),
-          };
-
-          return jsonResponse({ success: true, verified: true, record });
+        if (!serverKey || serverKey.length <= 10) {
+          return jsonResponse({
+            error: 'Kunci MIDTRANS_SERVER_KEY belum terpasang di Cloudflare. Verifikasi status tidak dapat dilakukan.',
+          }, 503);
         }
 
-        // Mode simulasi
-        return jsonResponse({
-          success: true,
-          verified: true,
-          record: {
-            orderId,
-            status: orderId.startsWith('HHB-DP') ? 'DP_PAID' : 'SETTLEMENT',
-            isSimulation: true,
-            updatedAt: new Date().toISOString(),
+        const authHeader = `Basic ${btoa(`${serverKey}:`)}`;
+        const midtransRes = await fetch(`${coreApiBaseUrl}/${encodeURIComponent(orderId)}/status`, {
+          method: 'GET',
+          headers: {
+            'Accept': 'application/json',
+            'Authorization': authHeader,
           },
         });
+
+        if (!midtransRes.ok) {
+          return jsonResponse({
+            success: true,
+            verified: false,
+            message: 'Status di Midtrans belum terupdate atau masih diproses.',
+          });
+        }
+
+        const statusData = (await midtransRes.json()) as any;
+        const { transaction_status, fraud_status, gross_amount, payment_type, transaction_id } = statusData;
+
+        const paymentType: 'dp' | 'full' = orderId.startsWith('HHB-DP') ? 'dp' : 'full';
+        const { status: authoritativeStatus, isSuccess } = resolveMidtransStatus(
+          transaction_status,
+          fraud_status,
+          paymentType
+        );
+
+        const grossNum = Number(gross_amount) || 0;
+        const isDP = paymentType === 'dp';
+        const remainingBalance = isDP ? Math.round(grossNum * (70 / 30)) : 0;
+        const totalAmount = grossNum + remainingBalance;
+
+        const record = {
+          orderId,
+          bookingType: 'tour',
+          itemName: 'Paket Tour Hoola Holiday Bali',
+          totalAmountIDR: totalAmount,
+          grossAmountPaidIDR: grossNum,
+          remainingBalanceIDR: remainingBalance,
+          paymentType,
+          dpPercentage: 30,
+          status: authoritativeStatus,
+          paymentMethod: payment_type || 'Midtrans Online Payment',
+          midtransTransactionId: transaction_id,
+          isSimulation: false,
+          updatedAt: new Date().toISOString(),
+        };
+
+        return jsonResponse({ success: true, verified: true, record });
       } catch (err: any) {
         return jsonResponse({ error: err.message || 'Gagal memverifikasi status pembayaran.' }, 500);
       }
@@ -454,46 +442,41 @@ export default {
           return jsonResponse({ error: 'orderId wajib diisi.' }, 400);
         }
 
-        if (serverKey && serverKey.length > 10) {
-          const authHeader = `Basic ${btoa(`${serverKey}:`)}`;
-          const midtransRes = await fetch(`${coreApiBaseUrl}/${encodeURIComponent(orderId)}/status`, {
-            method: 'GET',
-            headers: {
-              'Accept': 'application/json',
-              'Authorization': authHeader,
-            },
-          });
-
-          if (!midtransRes.ok) {
-            return jsonResponse({ success: false, error: 'Data transaksi tidak ditemukan di Midtrans' }, 404);
-          }
-
-          const statusData = (await midtransRes.json()) as any;
-          const paymentType: 'dp' | 'full' = orderId.startsWith('HHB-DP') ? 'dp' : 'full';
-          const { status: resolvedStatus } = resolveMidtransStatus(
-            statusData.transaction_status,
-            statusData.fraud_status,
-            paymentType
-          );
-
+        if (!serverKey || serverKey.length <= 10) {
           return jsonResponse({
-            success: true,
-            record: {
-              orderId,
-              status: resolvedStatus,
-              rawStatus: statusData.transaction_status,
-              grossAmount: statusData.gross_amount,
-              paymentType: statusData.payment_type,
-            },
-          });
+            error: 'Kunci MIDTRANS_SERVER_KEY belum terpasang di Cloudflare.',
+          }, 503);
         }
+
+        const authHeader = `Basic ${btoa(`${serverKey}:`)}`;
+        const midtransRes = await fetch(`${coreApiBaseUrl}/${encodeURIComponent(orderId)}/status`, {
+          method: 'GET',
+          headers: {
+            'Accept': 'application/json',
+            'Authorization': authHeader,
+          },
+        });
+
+        if (!midtransRes.ok) {
+          return jsonResponse({ success: false, error: 'Data transaksi tidak ditemukan di Midtrans' }, 404);
+        }
+
+        const statusData = (await midtransRes.json()) as any;
+        const paymentType: 'dp' | 'full' = orderId.startsWith('HHB-DP') ? 'dp' : 'full';
+        const { status: resolvedStatus } = resolveMidtransStatus(
+          statusData.transaction_status,
+          statusData.fraud_status,
+          paymentType
+        );
 
         return jsonResponse({
           success: true,
           record: {
             orderId,
-            status: 'SETTLEMENT',
-            isSimulation: true,
+            status: resolvedStatus,
+            rawStatus: statusData.transaction_status,
+            grossAmount: statusData.gross_amount,
+            paymentType: statusData.payment_type,
           },
         });
       } catch (err: any) {

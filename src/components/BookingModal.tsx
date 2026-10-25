@@ -364,7 +364,7 @@ export default function BookingModal({
 
       if (session.isSimulation) {
         setIsProcessingMidtrans(false);
-        finalizeSuccess(session, 'Midtrans Sandbox Gateway (Simulasi)');
+        setMidtransError('Kunci server Midtrans sedang disiapkan atau belum terhubung. Website tidak akan memunculkan e-voucher palsu sebelum pembayaran riil berhasil.');
         return;
       }
 

@@ -28,6 +28,13 @@ export const onRequestGet = async (context: {
       ? 'https://api.midtrans.com/v2'
       : 'https://api.sandbox.midtrans.com/v2';
 
+    if (!serverKey || serverKey.length <= 10) {
+      return new Response(
+        JSON.stringify({ error: 'Kunci MIDTRANS_SERVER_KEY belum terpasang di Cloudflare.' }),
+        { status: 503, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+
     const authHeader = `Basic ${btoa(`${serverKey}:`)}`;
     const midtransRes = await fetch(`${coreApiBaseUrl}/${encodeURIComponent(orderId)}/status`, {
       method: 'GET',

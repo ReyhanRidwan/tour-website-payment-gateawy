@@ -45,9 +45,15 @@ export const onRequestPost = async (context: {
       serverKey.length > 10
     );
 
-    if (isConfigured && !orderId.startsWith('simulated-')) {
-      // Panggil endpoint resmi Midtrans Get Status API: GET /v2/{order_id}/status
-      const authHeader = `Basic ${btoa(`${serverKey}:`)}`;
+    if (!isConfigured) {
+      return new Response(
+        JSON.stringify({ error: 'Kunci MIDTRANS_SERVER_KEY belum terpasang di Cloudflare.' }),
+        { status: 503, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Panggil endpoint resmi Midtrans Get Status API: GET /v2/{order_id}/status
+    const authHeader = `Basic ${btoa(`${serverKey}:`)}`;
       const midtransRes = await fetch(`${coreApiBaseUrl}/${encodeURIComponent(orderId)}/status`, {
         method: 'GET',
         headers: {
@@ -144,22 +150,6 @@ export const onRequestPost = async (context: {
         JSON.stringify({ success: true, verified: true, record }),
         { status: 200, headers: { 'Content-Type': 'application/json' } }
       );
-    }
-
-    // Mode simulasi fallback
-    return new Response(
-      JSON.stringify({
-        success: true,
-        verified: true,
-        record: {
-          orderId,
-          status: orderId.startsWith('HHB-DP') ? 'DP_PAID' : 'SETTLEMENT',
-          isSimulation: true,
-          updatedAt: new Date().toISOString(),
-        },
-      }),
-      { status: 200, headers: { 'Content-Type': 'application/json' } }
-    );
   } catch (err: any) {
     return new Response(
       JSON.stringify({ error: err.message || 'Gagal memverifikasi status pembayaran.' }),
