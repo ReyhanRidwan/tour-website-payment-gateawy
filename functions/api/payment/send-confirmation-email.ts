@@ -19,7 +19,7 @@ export const onRequestPost = async (context: {
       });
     }
 
-    const serverKey = env.MIDTRANS_SERVER_KEY || atob('TWlkLXNlcnZlci1TZ3B6WFFuVy1XLXhtZl9UY0RJUWcwbTg=');
+    const serverKey = env.MIDTRANS_SERVER_KEY || '';
     const isProduction = env.MIDTRANS_IS_PRODUCTION === 'true';
     const coreApiBaseUrl = isProduction
       ? 'https://api.midtrans.com/v2'
@@ -80,7 +80,7 @@ export const onRequestPost = async (context: {
         startDate: body.startDate,
         quantity: body.quantity,
       },
-      { ...env, RESEND_API_KEY: env.RESEND_API_KEY || atob('cmVfaDk5cVRSOHFfRVUzZkdDWm93ZjdyQnBRc0pqVDRtanpW') }
+      { ...env, RESEND_API_KEY: env.RESEND_API_KEY || '' }
     );
 
     return new Response(JSON.stringify({ success: true, emailResult }), {

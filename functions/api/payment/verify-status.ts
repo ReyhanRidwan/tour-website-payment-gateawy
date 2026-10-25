@@ -32,7 +32,7 @@ export const onRequestPost = async (context: {
       });
     }
 
-    const serverKey = env.MIDTRANS_SERVER_KEY || atob('TWlkLXNlcnZlci1TZ3B6WFFuVy1XLXhtZl9UY0RJUWcwbTg=');
+    const serverKey = env.MIDTRANS_SERVER_KEY || '';
     const isProduction = env.MIDTRANS_IS_PRODUCTION === 'true';
 
     const coreApiBaseUrl = isProduction
@@ -127,7 +127,7 @@ export const onRequestPost = async (context: {
           },
           {
             ...env,
-            RESEND_API_KEY: env.RESEND_API_KEY || atob('cmVfaDk5cVRSOHFfRVUzZkdDWm93ZjdyQnBRc0pqVDRtanpW'),
+            RESEND_API_KEY: env.RESEND_API_KEY || '',
             RESEND_FROM: env.RESEND_FROM || 'Hoola Holiday Bali <booking@balinikitour.biz.id>',
             ADMIN_EMAIL: env.ADMIN_EMAIL || 'reyhanridwan30@gmail.com',
           }
